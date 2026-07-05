@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>THOX.ai | MR Prototyping Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Orbitron:wght@400;700&display=swap');
+        
+        body {
+            background-color: #050507;
+            color: #e5e7eb;
+            font-family: 'JetBrains Mono', monospace;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(10, 20, 15, 1) 0%, rgba(0, 0, 0, 1) 100%);
+        }
+
+        .font-orbitron { font-family: 'Orbitron', sans-serif; }
+        
+        .scanlines {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.2) 50%,
+                rgba(0,0,0,0.2)
+            );
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+
+        .neon-border {
+            border: 1px solid #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.15), inset 0 0 15px rgba(74, 222, 128, 0.05);
+        }
+
+        .neon-text {
+            text-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+        }
+
+        input[type="file"] { display: none; }
+
+        .loader {
+            border: 3px solid rgba(74, 222, 128, 0.1);
+            border-top: 3px solid #4ade80;
+            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            animation: spin 1s cubic-bezier(0.55, 0.085, 0.68, 0.53) infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; border-left: 1px solid #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4ade80; border-radius: 3px; }
+
+        .terminal-content b { color: #4ade80; font-weight: normal; }
+        .terminal-content p { margin-bottom: 0.75rem; }
+        .terminal-content ul { list-style-type: none; padding-left: 1rem; margin-bottom: 0.75rem; }
+        .terminal-content li { position: relative; padding-left: 1rem; margin-bottom: 0.25rem; }
+        .terminal-content li::before { content: '>'; position: absolute; left: 0; color: #4ade80; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row p-2 md:p-4 gap-4 box-border">
+
+    <!-- Left Column: Camera / Image Input -->
+    <div class="flex-1 flex flex-col gap-4 max-h-full">
+        
+        <!-- Header -->
+        <header class="flex items-center justify-between neon-border bg-black/60 rounded-xl p-4 backdrop-blur-md">
+            <div class="flex items-center gap-4">
+                <div class="p-2 bg-green-500/10 rounded-lg border border-green-500/30">
+                    <i class="ph ph-cpu text-3xl text-green-400"></i>
+                </div>
+                <div>
+                    <h1 class="font-orbitron text-xl md:text-2xl font-bold text-white tracking-widest neon-text">THOX.ai <span class="text-gray-500 text-sm font-mono ml-2 tracking-normal">// Q3</span></h1>
+                    <p class="text-xs text-green-400/80 uppercase tracking-widest mt-1">Vision Prototyping Module</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 bg-gray-900/80 py-1.5 px-3 rounded-full border border-gray-800">
+                <span class="relative flex h-2.5 w-2.5">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500 shadow-[0_0_8px_#4ade80]"></span>
+                </span>
+                <span class="text-[10px] text-gray-300 font-bold tracking-wider">SYS ONLINE</span>
+            </div>
+        </header>
+
+        <!-- Viewfinder -->
+        <div class="flex-1 relative neon-border rounded-xl bg-[#08080a] overflow-hidden flex flex-col items-center justify-center min-h-[300px]">
+            <div class="absolute inset-0 scanlines z-10 opacity-70"></div>
+            
+            <!-- Crosshairs -->
+            <div class="absolute inset-0 pointer-events-none z-10 flex items-center justify-center opacity-30">
+                <div class="w-16 h-16 border border-green-500 rounded-full relative">
+                    <div class="absolute top-1/2 -left-4 w-4 h-[1px] bg-green-500"></div>
+                    <div class="absolute top-1/2 -right-4 w-4 h-[1px] bg-green-500"></div>
+                    <div class="absolute -top-4 left-1/2 w-[1px] h-4 bg-green-500"></div>
+                    <div class="absolute -bottom-4 left-1/2 w-[1px] h-4 bg-green-500"></div>
+                </div>
+            </div>
+            
+            <img id="image-preview" class="absolute inset-0 w-full h-full object-contain hidden z-0 bg-black" alt="Camera Feed" />
+            
+            <div id="upload-prompt" class="z-20 flex flex-col items-center text-center p-8 bg-black/80 rounded-2xl border border-gray-800 backdrop-blur-md shadow-2xl max-w-sm mx-4">
+                <div class="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center mb-4 border border-gray-700">
+                    <i class="ph ph-aperture text-4xl text-gray-400"></i>
+                </div>
+                <h2 class="text-white font-orbitron font-bold mb-2">Awaiting Visual Input</h2>
+                <p class="text-xs text-gray-400 mb-6 leading-relaxed">Capture your workbench, PCB, or 3D print using the Quest 3 passthrough cameras to initiate AI analysis.</p>
+                <label class="cursor-pointer w-full bg-green-500/10 hover:bg-green-500/20 border border-green-500/50 text-green-400 font-bold py-3 px-6 rounded-lg transition-all uppercase text-sm tracking-wider flex items-center justify-center gap-2 group">
+                    <i class="ph ph-scan text-lg group-hover:animate-pulse"></i> Activate Sensors
+                    <!-- Capture environment targets rear/passthrough cameras natively -->
+                    <input type="file" id="image-input" accept="image/*" capture="environment" />
+                </label>
+            </div>
+        </div>
+
+        <!-- Mode Selector -->
+        <div class="grid grid-cols-3 gap-3">
+            <button onclick="setMode('soldering')" id="mode-soldering" class="mode-btn border border-green-500/50 bg-green-500/10 hover:bg-green-500/20 text-green-400 py-4 rounded-xl text-xs md:text-sm font-bold uppercase transition-all shadow-[0_0_15px_rgba(74,222,128,0.15)] flex flex-col items-center justify-center gap-2">
+                <i class="ph ph-fire text-2xl"></i> Soldering QC
+            </button>
+            <button onclick="setMode('assembly')" id="mode-assembly" class="mode-btn border border-gray-700 bg-gray-900 hover:bg-gray-800 text-gray-400 py-4 rounded-xl text-xs md:text-sm font-bold uppercase transition-all flex flex-col items-center justify-center gap-2">
+                <i class="ph ph-puzzle-piece text-2xl"></i> Assembly
+            </button>
+            <button onclick="setMode('3dprint')" id="mode-3dprint" class="mode-btn border border-gray-700 bg-gray-900 hover:bg-gray-800 text-gray-400 py-4 rounded-xl text-xs md:text-sm font-bold uppercase transition-all flex flex-col items-center justify-center gap-2">
+                <i class="ph ph-cube text-2xl"></i> Print QC
+            </button>
+        </div>
+    </div>
+
+    <!-- Right Column: Analysis Terminal -->
+    <div class="md:w-[400px] lg:w-[500px] flex flex-col gap-4 max-h-full h-[50vh] md:h-auto">
+        <div class="flex-1 neon-border rounded-xl bg-[#0a0a0c] flex flex-col overflow-hidden relative shadow-2xl">
+            
+            <!-- Terminal Header -->
+            <div class="bg-gray-900 border-b border-green-500/30 p-3 px-4 flex justify-between items-center z-20 shadow-md">
+                <div class="flex items-center gap-2 text-xs font-bold tracking-widest text-green-400">
+                    <i class="ph ph-terminal-window text-lg"></i> TERMINAL
+                </div>
+                <span id="current-mode-display" class="text-[10px] text-gray-500 uppercase bg-black px-2 py-1 rounded border border-gray-800">MODE: SOLDERING_QC</span>
+            </div>
+
+            <!-- Terminal Output Area -->
+            <div id="terminal-output" class="flex-1 p-5 overflow-y-auto text-sm text-gray-300 leading-relaxed font-sans terminal-content relative z-10">
+                <!-- Boot Sequence Text -->
+                <div id="boot-text">
+                    <p class="text-green-500 mb-1">THOX.ai Vision Subsystem v2.5.4</p>
+                    <p class="text-gray-500 mb-1">Copyright (c) 2026 THOX Industries</p>
+                    <p class="text-gray-500 mb-4">Initializing neural pathways...</p>
+                    <p class="text-blue-400 mb-1">[SYS] Hardware detected: Meta Quest 3 512GB (Snapdragon XR2 Gen2)</p>
+                    <p class="text-blue-400 mb-1">[SYS] Vision model loaded: Gemini 2.5 Flash</p>
+                    <p class="text-green-400 mb-4">> System ready. Awaiting telemetry stream...</p>
+                </div>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div id="loading-overlay" class="absolute inset-0 bg-black/90 flex flex-col items-center justify-center z-30 hidden backdrop-blur-sm">
+                <div class="relative flex justify-center items-center mb-6">
+                    <div class="loader absolute"></div>
+                    <i class="ph ph-brain text-2xl text-green-400 relative z-10"></i>
+                </div>
+                <p class="text-green-400 text-sm font-bold uppercase tracking-widest animate-pulse font-orbitron">Running Inference</p>
+                <p id="loading-subtext" class="text-[10px] text-gray-500 mt-3 uppercase tracking-widest font-mono">Analyzing geometric tolerances...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const apiKey = ""; // API key is injected by the execution environment
+        
+        // State
+        let currentMode = 'soldering';
+        let currentBase64Image = null;
+        let currentMimeType = null;
+        let isProcessing = false;
+
+        // Custom Prompts tailored for the Quest 3 MR environment
+        const prompts = {
+            'soldering': `You are an AI assistant integrated into a Meta Quest 3 headset, helping an engineer with THOX.ai hardware prototyping. Analyze this image of a circuit board / soldering project.
+Focus strictly on QC (Quality Control). 
+1. Identify components and joints visible.
+2. Flag defects: cold joints (dull/grainy), insufficient wetting, excessive solder (blobs), solder bridges (shorts), or scorched pads.
+3. Be concise. Output a structured, easy-to-read report suitable for an AR terminal window.`,
+            
+            'assembly': `You are an AI assistant integrated into a Meta Quest 3 headset, helping an engineer with THOX.ai hardware prototyping. Analyze this image of mechanical parts or electronics.
+Focus on assembly guidance.
+1. Identify all loose or partially assembled parts (PCBs, 3D printed casing, fasteners).
+2. Deduce the next logical assembly step. 
+3. Warn about potential alignment issues or common mistakes (e.g., "ensure the ribbon cable is seated before screwing down the cover").
+4. Be concise and structured.`,
+            
+            '3dprint': `You are an AI assistant integrated into a Meta Quest 3 headset, helping an engineer with THOX.ai hardware prototyping. Analyze this image of a 3D printed prototype part.
+Focus on metrology and print quality.
+1. Identify obvious print defects: layer shifting, z-banding, severe stringing, warping off the bed, or under-extrusion.
+2. Evaluate surface finish.
+3. If it looks like a functional mechanical part, note any visible tolerance issues that might affect fitment.
+4. Conclude if it is a PASS or FAIL for prototyping purposes. Keep it concise.`
+        };
+
+        // DOM Elements
+        const imageInput = document.getElementById('image-input');
+        const imagePreview = document.getElementById('image-preview');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const terminalOutput = document.getElementById('terminal-output');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingSubtext = document.getElementById('loading-subtext');
+        const modeDisplay = document.getElementById('current-mode-display');
+        const bootText = document.getElementById('boot-text');
+
+        // Cycle loading text
+        const loadingMessages = [
+            "Extracting spatial features...",
+            "Running neural analysis...",
+            "Comparing with THOX.ai schematics...",
+            "Evaluating tolerances..."
+        ];
+        let loadInterval;
+
+        function startLoadingText() {
+            let i = 0;
+            loadingSubtext.innerText = loadingMessages[0];
+            loadInterval = setInterval(() => {
+                i = (i + 1) % loadingMessages.length;
+                loadingSubtext.innerText = loadingMessages[i];
+            }, 1500);
+        }
+
+        function stopLoadingText() {
+            clearInterval(loadInterval);
+        }
+
+        // Mode Switching
+        window.setMode = function(mode) {
+            if (isProcessing) return;
+            currentMode = mode;
+            
+            // Reset button styles
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('border-green-500/50', 'bg-green-500/10', 'text-green-400', 'hover:bg-green-500/20', 'shadow-[0_0_15px_rgba(74,222,128,0.15)]');
+                btn.classList.add('border-gray-700', 'bg-gray-900', 'text-gray-400', 'hover:bg-gray-800');
+            });
+
+            // Set active button style
+            const activeBtn = document.getElementById(`mode-${mode}`);
+            activeBtn.classList.remove('border-gray-700', 'bg-gray-900', 'text-gray-400', 'hover:bg-gray-800');
+            activeBtn.classList.add('border-green-500/50', 'bg-green-500/10', 'text-green-400', 'hover:bg-green-500/20', 'shadow-[0_0_15px_rgba(74,222,128,0.15)]');
+
+            modeDisplay.innerText = `MODE: ${mode.toUpperCase()}_QC`;
+
+            // Trigger re-analysis if image exists
+            if (currentBase64Image) {
+                runInference();
+            }
+        };
+
+        // Handle Image Input
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Optional: Hide boot text after first use
+            if (bootText) {
+                bootText.style.display = 'none';
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                imagePreview.src = event.target.result;
+                imagePreview.classList.remove('hidden');
+                uploadPrompt.classList.add('hidden');
+
+                const dataUrl = event.target.result;
+                const match = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+                
+                if (match) {
+                    currentMimeType = match[1];
+                    currentBase64Image = match[2];
+                    runInference();
+                } else {
+                    logToTerminal("Image parsing failed. Invalid format.", "error");
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Core Inference Logic with Exponential Backoff
+        async function runInference() {
+            if (!currentBase64Image || !currentMimeType || isProcessing) return;
+
+            isProcessing = true;
+            loadingOverlay.classList.remove('hidden');
+            startLoadingText();
+            
+            // UI Update
+            const separator = document.createElement('div');
+            separator.className = "w-full h-px bg-gray-800 my-4";
+            terminalOutput.appendChild(separator);
+            logToTerminal(`Initiating ${currentMode.toUpperCase()} scan...`, "sys");
+
+            const prompt = prompts[currentMode];
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-07:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: prompt },
+                        { inlineData: { mimeType: currentMimeType, data: currentBase64Image } }
+                    ]
+                }]
+            };
+
+            const backoffDelays = [1000, 2000, 4000, 8000, 16000];
+            let attempt = 0;
+            let success = false;
+
+            while (attempt < 5 && !success) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API returned HTTP ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                    
+                    if (textResult) {
+                        displayResults(textResult);
+                        success = true;
+                    } else {
+                        throw new Error("Empty response from Vision model");
+                    }
+                } catch (error) {
+                    attempt++;
+                    if (attempt >= 5) {
+                        logToTerminal(`CONNECTION FAILED: ${error.message}`, "error");
+                        logToTerminal("Please verify network connection and API status.", "warn");
+                    } else {
+                        // Silent retry logging to console, just wait
+                        await new Promise(resolve => setTimeout(resolve, backoffDelays[attempt - 1]));
+                    }
+                }
+            }
+            
+            stopLoadingText();
+            loadingOverlay.classList.add('hidden');
+            isProcessing = false;
+        }
+
+        // Terminal Logging
+        function logToTerminal(message, type = "info") {
+            const p = document.createElement('p');
+            p.className = 'mb-1 text-sm';
+            
+            if (type === "error") p.innerHTML = `<span class="text-red-500 font-bold">[ERR]</span> <span class="text-red-400">${message}</span>`;
+            else if (type === "warn") p.innerHTML = `<span class="text-yellow-500 font-bold">[WARN]</span> <span class="text-yellow-400">${message}</span>`;
+            else if (type === "sys") p.innerHTML = `<span class="text-blue-500 font-bold">[SYS]</span> <span class="text-blue-400">${message}</span>`;
+            else p.innerHTML = `<span class="text-green-500">></span> ${message}`;
+            
+            terminalOutput.appendChild(p);
+            scrollToBottom();
+        }
+
+        // Parse Markdown from Gemini and inject into Terminal
+        function displayResults(markdownText) {
+            logToTerminal("Analysis Complete.", "sys");
+            
+            // Very basic markdown parsing for the terminal UI
+            let htmlText = markdownText
+                // Headers
+                .replace(/^### (.*$)/gim, '<br><span class="text-white font-bold tracking-wide uppercase border-b border-gray-700 w-full inline-block mb-2">$1</span>')
+                .replace(/^## (.*$)/gim, '<br><span class="text-white font-bold tracking-wide uppercase border-b border-gray-700 w-full inline-block mb-2">$1</span>')
+                // Bold
+                .replace(/\*\*(.*?)\*\*/g, '<b class="text-green-300">$1</b>')
+                // Italics
+                .replace(/\*(.*?)\*/g, '<i class="text-gray-400">$1</i>')
+                // Lists
+                .replace(/^\* (.*$)/gim, '<li>$1</li>')
+                .replace(/^- (.*$)/gim, '<li>$1</li>')
+                // Wrap lists in ul
+                .replace(/(<li>.*<\/li>)/s, '<ul class="mt-2 text-gray-300">$1</ul>')
+                // Paragraphs
+                .replace(/\n\n/g, '</p><p class="mt-3 text-gray-300">')
+                // General line breaks
+                .replace(/\n/g, '<br>'); 
+
+            const resultContainer = document.createElement('div');
+            resultContainer.className = 'mt-3 mb-6 p-4 bg-gray-800/30 border border-green-500/20 rounded-lg backdrop-blur-sm shadow-inner';
+            resultContainer.innerHTML = `<p class="text-gray-300">${htmlText}</p>`;
+            
+            terminalOutput.appendChild(resultContainer);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            terminalOutput.scrollTo({
+                top: terminalOutput.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+    </script>
+</body>
+</html>
